@@ -1,0 +1,42 @@
+repos:
+  # Black: A code formatter for Python.
+  - repo: https://github.com/psf/black
+    rev: 23.7.0  # Use a specific version for consistency
+    hooks:
+      - id: black
+        name: Format Python code with Black
+
+  # isort: Automatically sorts import statements.
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0  # Specify a fixed version
+    hooks:
+      - id: isort
+        name: Sort Python imports
+
+  # flake8: Linter to check for style issues and potential errors.
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0  # Specify the version to use
+    hooks:
+      - id: flake8
+        name: Run flake8 for code linting
+        args: [--max-line-length=88]  # Adjust maximum line length if needed
+
+  # mypy: Static type checker for Python.
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.5.1  # Use a specific version of mypy
+    hooks:
+      - id: mypy
+        name: Check Python types with mypy
+        # Optionally, add additional dependencies if needed:
+        additional_dependencies: []
+
+  # pre-commit-hooks: A collection of useful hooks provided by the pre-commit team.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0  # Use a specific release version
+    hooks:
+      - id: trailing-whitespace
+        name: Remove trailing whitespace
+      - id: end-of-file-fixer
+        name: Ensure files end with a newline
+      - id: check-yaml
+        name: Validate YAML files

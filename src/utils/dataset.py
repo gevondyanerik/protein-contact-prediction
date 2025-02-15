@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import numpy as np
 import torch
@@ -12,9 +13,12 @@ class ProteinDataset(Dataset):
     Reads from an HDF5 file (group "chains") where each chain has:
       - Attribute "sequence"
       - Datasets "target_matrix" (contact map) and "distance_matrix" (distance map)
+      - Attribute "msa" (multiple sequence alignment, stored as a newline‐separated string)
+    
     The dataset builds an index (or sliding windows for validation) and returns a tuple:
-      (chain_key, start_idx, seq, contact_matrix, distance_matrix, mask, full_padded_size)
-    Here the target matrices are padded from (L, L) to (L+2, L+2) to reserve positions for special tokens.
+      (chain_key, start_idx, seq, contact_matrix, distance_matrix, mask, full_padded_size, msa)
+    
+    The target matrices are padded from (L, L) to (L+2, L+2) to reserve positions for special tokens.
     
     Training mode:
       - If len(seq) > max_input_length, truncate to max_input_length (pad_special behavior).
@@ -38,6 +42,7 @@ class ProteinDataset(Dataset):
             chains_group = f["chains"]
             for key in tqdm(chains_group.keys(), desc=f"Indexing {h5_file}"):
                 grp = chains_group[key]
+                # Read the reference sequence.
                 seq = grp.attrs["sequence"]
                 if isinstance(seq, bytes):
                     seq = seq.decode("utf-8")
@@ -59,9 +64,17 @@ class ProteinDataset(Dataset):
         chain_key, start_idx, sub_len, is_subwin, full_padded_size = self.index_list[idx]
         with h5py.File(self.h5_file, 'r') as f:
             grp = f["chains"][chain_key]
+            # Get the reference sequence.
             seq = grp.attrs["sequence"]
             if isinstance(seq, bytes):
                 seq = seq.decode("utf-8")
+            # Also load the MSA stored as an attribute.
+            msa = grp.attrs.get("msa", "")
+            if isinstance(msa, bytes):
+                msa = msa.decode("utf-8")
+            # Convert the MSA string into a list (splitting by newline).
+            msa = msa.split("\n") if msa else []
+            
             cmat = grp["target_matrix"]
             dmat = grp["distance_matrix"]
             if is_subwin:
@@ -99,7 +112,7 @@ class ProteinDataset(Dataset):
         
         cmat_np, dmat_np = self._pad_target_special(cmat_np, dmat_np)
         mask = self._build_special_mask(cmat_np.shape[0])
-        return chain_key, start_idx, seq, cmat_np, dmat_np, mask, full_padded_size
+        return chain_key, start_idx, seq, cmat_np, dmat_np, mask, full_padded_size, msa
 
     def _random_crop(self, seq, cmat_np, dmat_np):
         L = len(seq)
@@ -142,3 +155,8 @@ class ProteinDataset(Dataset):
         mask[:, 0] = False
         mask[:, size-1] = False
         return mask
+
+if __name__ == "__main__":
+    # Example usage: print the first item from a given HDF5 dataset.
+    dataset = ProteinDataset(h5_file="data/processed/your_dataset.h5", max_input_length=100, mode="train")
+    print(dataset[0])

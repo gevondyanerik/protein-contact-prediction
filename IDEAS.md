@@ -176,3 +176,7 @@ In summary, for a protein contact map prediction task, using a loss function tha
 
 
 sliding window 
+
+
+
+трешхолдинг, msa, не закапывайся

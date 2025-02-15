@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import math
 
@@ -66,3 +67,23 @@ def angle_loss(pred, target, mask=None):
             mask = mask.bool()
         diff = torch.masked_select(diff, mask)
     return torch.mean(diff ** 2)
+
+
+class MultiTaskLossWrapper(nn.Module):
+    """
+    A loss wrapper that learns uncertainty parameters for each task.
+    For num_tasks losses L1, L2, ..., L_n the combined loss is:
+      L = 0.5 * exp(-s1) * L1 + 0.5 * s1 +
+          0.5 * exp(-s2) * L2 + 0.5 * s2 + ... 
+    where s_i are learnable log-variances.
+    """
+    def __init__(self, num_tasks=3):
+        super().__init__()
+        # Initialize log variances to 0 (i.e. sigma = 1)
+        self.log_vars = nn.Parameter(torch.zeros(num_tasks))
+    
+    def forward(self, losses):
+        total_loss = 0
+        for i, loss in enumerate(losses):
+            total_loss += 0.5 * torch.exp(-self.log_vars[i]) * loss + 0.5 * self.log_vars[i]
+        return total_loss

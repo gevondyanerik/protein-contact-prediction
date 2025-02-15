@@ -1,67 +1,56 @@
-# Data paths
+# dataset paths
 train_data_path: "data/processed/train_pdb.h5"
 test_data_path: "data/processed/test_pdb.h5"
 
-# ESM2 model configuration
+# model names
+model_type: esm2_contact_distance_angle_predictor_msa
 esm_model_name: "esm2_t6_8M_UR50D"
-# Choose the model type (one of):
-#   "esm2_contact_predictor" 
-#   "esm2_contact_distance_predictor"
-#   "esm2_contact_distance_angle_predictor"
-#   "esm2_contact_angle_predictor"
-model_type: "esm2_contact_predictor"
+msa_model_name: "esm_msa1b_t12_100M_UR50S"
+use_msa: true
 
-checkpoints_metric: "f1"
-checkpoints_dir_path: "checkpoints/"
-save_best_k_checkpoints: 1
-maximize: true
-
-# Training parameters
+# Training configuration
 learning_rate: 0.0001
-batch_size: 1
-num_epochs: 10
-max_input_length: 100
+train_batch_size: 4
+num_epochs: 30
+max_input_length: 200
 eval_interval: 2
 seed: 42
+num_layers_to_freeze: 6
+overfit_one_batch: true
 
-checkpoint_path_to_load: "checkpoints/checkpoint_epoch_5.pth"
+# Validation configuration
+val_batch_size: 1
+val_mode: "truncate_seq"   # Options: "truncate_seq", "random_crop", or "sliding_window"
+sliding_window_step: 200
 
 # Loss configuration
-loss_type: "focal"          # Options: "bce" or "focal"
+loss_type: "focal"         # "bce" or "focal"
 focal_gamma: 2.0
-contact_class_weights: [1.0, 5.0]   # [neg_weight, pos_weight]
-
-# Dataset toggles:
-# For training: if sequence length > max_input_length then truncate (pad_special), otherwise random_crop.
-# For validation, choose one of: "sliding_window", "random_crop", or "truncate_seq"
-val_mode: "sliding_window"
-sliding_window_step: 100
-
-# Debug (overfit one batch for debugging)
-overfit_one_batch: false
-
-# Number of ESM2 layers to freeze
-num_layers_to_freeze: 6
-
-# Extra loss weights for multitask training:
+contact_class_weights: [1.0, 2.0]
+use_uncertainty_weighting: true
 contact_loss_weight: 1.0
 distance_loss_weight: 0.5
 angle_loss_weight: 0.5
-
-# Option: reweight contact loss using distance information.
 reweight_contact_loss: false
 distance_to_weight_scale: 8.0
 
-# Feature fusion options for multitask models:
-feature_fusion: false
-fusion_scale: 1.0          # Scaling factor for fusion term
+# Fusion configuration (for multitask models)
+feature_fusion: true
+fusion_scale: 1.0
 fusion_source: "both"      # Options: "distance", "angle", or "both"
-fusion_d_model: 64
-fusion_num_heads: 4
+fusion_d_model: 128
+fusion_num_heads: 8
+
+# Checkpoint configuration
+checkpoint_path_to_load: null
+checkpoints_metric: "roc-auc"
+maximize: true
+checkpoints_dir_path: "checkpoints/"
+save_best_k_checkpoints: 1
 
 # MLflow configuration (optional)
 mlflow:
   enabled: true
   tracking_uri: "http://localhost:5000"
   experiment_name: "ContactPrediction"
-  run_name: "v2"
+  run_name: "v4"

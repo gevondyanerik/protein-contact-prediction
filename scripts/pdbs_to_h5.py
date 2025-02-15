@@ -21,6 +21,8 @@ def process_pdb_file(pdb_file):
       - chain_id: the identifier of the chain,
       - protein: the base name of the file without extension,
       - sequence: the amino acid sequence (using one-letter codes),
+      - msa: a list of sequences (for now, simply the reference sequence; 
+             this can be extended to include homologs from an MSA tool),
       - distance_matrix: the matrix of distances between Cα atoms,
       - target_matrix: the binary contact matrix (1 if the distance is < 8 Å).
     """
@@ -41,14 +43,12 @@ def process_pdb_file(pdb_file):
         
         # Iterate over residues in the chain.
         for residue in chain:
-            # Only process standard residues.
             if residue.id[0] != " ":
                 continue
             
             resname = residue.get_resname().upper()
-            one_letter = THREE_TO_ONE.get(resname, "X")  # Use 'X' for unknown residues.
+            one_letter = THREE_TO_ONE.get(resname, "X")
             
-            # Only process residues that have a Cα atom.
             if "CA" in residue:
                 ca_atom = residue["CA"]
                 ca_coords.append(ca_atom.get_coord())
@@ -56,40 +56,32 @@ def process_pdb_file(pdb_file):
             else:
                 continue
 
-        # Skip chains with no valid Cα atoms.
         if not ca_coords:
             continue
 
-        # Convert the list of coordinates into a NumPy array of shape (N, 3),
-        # where N is the number of residues.
         ca_coords = np.array(ca_coords)
-        
-        # Compute the pairwise distance matrix using broadcasting.
         diff = ca_coords[:, np.newaxis, :] - ca_coords[np.newaxis, :, :]
         dist_matrix = np.sqrt(np.sum(diff ** 2, axis=-1))
         
-        # Create the binary contact (target) matrix: 1 if distance < 8 Å.
         contact_matrix = (dist_matrix < 8.0).astype(int)
-        # Set the diagonal to 0 since a residue is not considered in contact with itself.
         np.fill_diagonal(contact_matrix, 0)
 
-        # Build the chain data dictionary.
+        # For demonstration, we create an MSA as a list containing only the reference sequence.
+        msa = [sequence]
+        
         chain_data = {
             "chain_id": chain_id,
             "protein": base_filename,
             "sequence": sequence,
-            "distance_matrix": dist_matrix,  # NumPy array
-            "target_matrix": contact_matrix  # NumPy array
+            "msa": msa,
+            "distance_matrix": dist_matrix,
+            "target_matrix": contact_matrix
         }
         chains_data.append(chain_data)
     
     return chains_data
 
 def get_pdb_files_from_directory(directory):
-    """
-    Recursively walks through the directory and returns a list of all file paths
-    with a .pdb extension.
-    """
     pdb_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
@@ -98,26 +90,19 @@ def get_pdb_files_from_directory(directory):
     return pdb_files
 
 def main():
-    # Setup argument parser for command-line options.
     parser = argparse.ArgumentParser(
         description="Convert PDB files from specified directories into a single HDF5 dataset."
     )
-    # Argument for one or more directories containing PDB files.
-    parser.add_argument("directories", nargs="+",
-                        help="One or more directories containing PDB files.")
-    # Optional argument for output directory for the HDF5 file.
+    parser.add_argument("directories", nargs="+", help="One or more directories containing PDB files.")
     parser.add_argument("-o", "--output_dir", default="../data/processed",
                         help="Directory to save the HDF5 file (default: ../data/processed)")
-    # Optional argument for the output HDF5 filename.
     parser.add_argument("-f", "--output_file", default="pdb_dataset.h5",
                         help="Name of the output HDF5 file (default: pdb_dataset.h5)")
     args = parser.parse_args()
 
-    # Create the output directory if it doesn't exist.
     os.makedirs(args.output_dir, exist_ok=True)
 
     all_pdb_files = []
-    # Iterate over each provided directory and gather PDB files.
     for directory in args.directories:
         if os.path.isdir(directory):
             pdb_files = get_pdb_files_from_directory(directory)
@@ -127,14 +112,11 @@ def main():
 
     print(f"Found {len(all_pdb_files)} PDB files.")
 
-    # Create the HDF5 file.
     output_path = os.path.join(args.output_dir, args.output_file)
     with h5py.File(output_path, "w") as h5file:
-        # Create a group to hold all chains.
         chains_group = h5file.create_group("chains")
         chain_index = 0
         
-        # Process each PDB file and store its chain data.
         for pdb_file in all_pdb_files:
             print(f"Processing file: {pdb_file}")
             chains_data = process_pdb_file(pdb_file)
@@ -142,14 +124,14 @@ def main():
                 group_name = f"chain_{chain_index:05d}"
                 chain_group = chains_group.create_group(group_name)
                 
-                # Save matrices as datasets with gzip compression.
                 chain_group.create_dataset("distance_matrix", data=chain_data["distance_matrix"], compression="gzip")
                 chain_group.create_dataset("target_matrix", data=chain_data["target_matrix"], compression="gzip")
                 
-                # Save metadata as attributes.
                 chain_group.attrs["chain_id"] = chain_data["chain_id"]
                 chain_group.attrs["protein"] = chain_data["protein"]
                 chain_group.attrs["sequence"] = chain_data["sequence"]
+                # Save the MSA as a newline-separated string.
+                chain_group.attrs["msa"] = "\n".join(chain_data["msa"])
                 
                 chain_index += 1
 

@@ -166,12 +166,17 @@ def train_pipeline(config):
             dmat_batch = dmat_batch.to(device)
             mask_batch = mask_batch.to(device)
             optimizer.zero_grad()
-
-            if config.get("use_msa", False) and model_type == "esm2_contact_predictor_msa":
-                tokens, msa_tokens = convert_seqs_to_tokens(seq_batch, model.ref_alphabet, msa_batch=[s for _, s in seq_batch], msa_alphabet=model.msa_alphabet)
+            # When using MSA, use the reference model’s alphabet and the msa_batch:
+            if config.get("use_msa", False):
+                tokens, msa_tokens = convert_seqs_to_tokens(
+                    seq_batch, 
+                    model.ref_alphabet, 
+                    msa_batch=msa_batch, 
+                    msa_alphabet=model.msa_alphabet
+                )
                 tokens = tokens.to(device)
                 msa_tokens = msa_tokens.to(device)
-                outputs = model(tokens, msa_tokens)
+                outputs = model((tokens, msa_tokens))
             else:
                 tokens = convert_seqs_to_tokens(seq_batch, model.alphabet).to(device)
                 outputs = model(tokens)
@@ -256,7 +261,7 @@ def train_pipeline(config):
                                                                   msa_alphabet=model.msa_alphabet)
                     tokens = tokens.to(device)
                     msa_tokens = msa_tokens.to(device)
-                    outputs = model(tokens, msa_tokens)
+                    outputs = model((tokens, msa_tokens))
                     contact_preds = outputs[0] if isinstance(outputs, (tuple, list)) else outputs
                 else:
                     tokens = convert_seqs_to_tokens(seq_batch, model.alphabet).to(device)

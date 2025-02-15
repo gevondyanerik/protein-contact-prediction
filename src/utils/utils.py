@@ -36,43 +36,32 @@ def train_val_collate(batch):
 
 def convert_seqs_to_tokens(seq_batch, alphabet, msa_batch=None, msa_alphabet=None):
     """
-    Converts a batch of sequences into tokens using the provided alphabet’s batch_converter.
-    
-    If msa_batch and msa_alphabet are provided, then for each sample in the batch, the
-    corresponding MSA (a list of sequences) is tokenized using the msa_alphabet’s batch_converter.
+    Tokenizes a list of sequences using the provided ESM alphabet.
+    If msa_batch and msa_alphabet are provided, tokenizes the MSA as well.
     
     Args:
-        seq_batch (list of str): List of reference sequences.
-        alphabet: ESM alphabet (for the reference model).
-        msa_batch (list of list of str, optional): For each sample, a list of MSA sequences.
-        msa_alphabet: ESM alphabet for the MSA model.
+        seq_batch (list[str]): List of reference sequences.
+        alphabet: The ESM alphabet for the reference model.
+        msa_batch (list[list[str]], optional): List (per sample) of MSA sequences.
+        msa_alphabet (optional): The ESM alphabet for the MSA model.
     
     Returns:
-        If msa_batch and msa_alphabet are provided:
-            (ref_tokens, msa_tokens) where:
-                - ref_tokens is a tensor of shape (B, L+2)
-                - msa_tokens is a tensor of shape (B, num_msa, L+2)
-        Otherwise:
-            ref_tokens (tensor) of shape (B, L+2)
+        If msa_batch is provided: (ref_tokens, msa_tokens)
+        Otherwise: ref_tokens
     """
-    # Tokenize reference sequences.
     batch_converter = alphabet.get_batch_converter()
     labeled = [(f"seq_{i}", seq) for i, seq in enumerate(seq_batch)]
     _, _, ref_tokens = batch_converter(labeled)
-    
     if msa_batch is not None and msa_alphabet is not None:
-        msa_tokens_list = []
-        msa_batch_converter = msa_alphabet.get_batch_converter()
-        # For each sample, tokenize its list of MSA sequences.
+        # For each sample, if the msa list is empty, default to the reference sequence.
+        labeled_msa = []
         for i, msa in enumerate(msa_batch):
-            # Each msa is expected to be a list of sequences.
-            labeled_msa = [(f"msa_{i}_{j}", seq) for j, seq in enumerate(msa)]
-            # The batch converter returns a tuple; we only need the tokens.
-            _, _, msa_tokens = msa_batch_converter(labeled_msa)
-            # msa_tokens shape: (num_msa, L+2)
-            msa_tokens_list.append(msa_tokens)
-        # Stack the token tensors into shape (B, num_msa, L+2)
-        msa_tokens = torch.stack(msa_tokens_list, dim=0)
-        return ref_tokens, msa_tokens
+            if not msa:
+                msa = [seq_batch[i]]
+            # Create a list of (id, sequence) tuples for this sample.
+            labeled_msa.append([(f"msa_{i}_{j}", s) for j, s in enumerate(msa)])
+        msa_converter = msa_alphabet.get_batch_converter()
+        _, _, msa_tokens = msa_converter(labeled_msa)
+        return torch.tensor(ref_tokens), torch.tensor(msa_tokens)
     else:
-        return ref_tokens
+        return torch.tensor(ref_tokens)

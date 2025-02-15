@@ -14,10 +14,8 @@ class ProteinDataset(Dataset):
       - Attribute "sequence"
       - Datasets "target_matrix" (contact map) and "distance_matrix" (distance map)
       - Attribute "msa" (multiple sequence alignment, stored as a newline‐separated string)
-    
     The dataset builds an index (or sliding windows for validation) and returns a tuple:
       (chain_key, start_idx, seq, contact_matrix, distance_matrix, mask, full_padded_size, msa)
-    
     The target matrices are padded from (L, L) to (L+2, L+2) to reserve positions for special tokens.
     
     Training mode:
@@ -25,10 +23,7 @@ class ProteinDataset(Dataset):
       - Otherwise, apply random crop.
     
     Validation mode:
-      The behavior is determined by `val_mode`:
-        - "sliding_window": index_list contains windows and full_padded_size is returned.
-        - "random_crop": random crop is applied.
-        - "truncate_seq": sequence is simply truncated.
+      Behavior is determined by the 'val_mode' parameter.
     """
     def __init__(self, h5_file, max_input_length=100, mode="train", val_mode="truncate_seq", step=20):
         self.h5_file = h5_file
@@ -42,7 +37,6 @@ class ProteinDataset(Dataset):
             chains_group = f["chains"]
             for key in tqdm(chains_group.keys(), desc=f"Indexing {h5_file}"):
                 grp = chains_group[key]
-                # Read the reference sequence.
                 seq = grp.attrs["sequence"]
                 if isinstance(seq, bytes):
                     seq = seq.decode("utf-8")
@@ -68,11 +62,11 @@ class ProteinDataset(Dataset):
             seq = grp.attrs["sequence"]
             if isinstance(seq, bytes):
                 seq = seq.decode("utf-8")
-            # Also load the MSA stored as an attribute.
+            # Load the MSA stored as an attribute.
             msa = grp.attrs.get("msa", "")
             if isinstance(msa, bytes):
                 msa = msa.decode("utf-8")
-            # Convert the MSA string into a list (splitting by newline).
+            # Split the MSA string into a list (each line one sequence).
             msa = msa.split("\n") if msa else []
             
             cmat = grp["target_matrix"]
@@ -89,6 +83,7 @@ class ProteinDataset(Dataset):
                 cmat_np = cmat[()]
                 dmat_np = dmat[()]
         
+        # Apply training/validation processing.
         if self.mode == "train":
             if len(seq) > self.max_input_length:
                 # Truncate (pad_special behavior)
@@ -106,7 +101,7 @@ class ProteinDataset(Dataset):
                 dmat_np = dmat_np[:self.max_input_length, :self.max_input_length]
             elif self.val_mode == "random_crop":
                 seq, cmat_np, dmat_np = self._random_crop(seq, cmat_np, dmat_np)
-            # In sliding_window mode, index_list already provides windows.
+            # For sliding_window, index_list already gives windows.
             seq = self._pad_seq(seq)
             cmat_np, dmat_np = self._pad_matrices(cmat_np, dmat_np)
         
@@ -155,8 +150,3 @@ class ProteinDataset(Dataset):
         mask[:, 0] = False
         mask[:, size-1] = False
         return mask
-
-if __name__ == "__main__":
-    # Example usage: print the first item from a given HDF5 dataset.
-    dataset = ProteinDataset(h5_file="data/processed/your_dataset.h5", max_input_length=100, mode="train")
-    print(dataset[0])

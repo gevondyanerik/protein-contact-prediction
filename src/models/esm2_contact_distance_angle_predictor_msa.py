@@ -28,13 +28,13 @@ class ESM2ContactDistanceAnglePredictorMSA(nn.Module):
       - Distance map (via a distance head and ReLU)
       - Angle map (via an angle head and tanh scaled by π)
     
-    This variant integrates MSA information. When the configuration flag `use_msa` is true,
-    the model’s forward expects a tuple (ref_tokens, msa_tokens) where:
+    This variant integrates MSA information. When `use_msa` is True, the forward
+    expects a tuple (ref_tokens, msa_tokens) where:
       - ref_tokens: tokens for the reference sequence (shape: [B, L+2])
       - msa_tokens: tokens for the MSA (shape: [B, num_seqs, L+2])
     
     The MSA branch is processed by a separate pretrained MSA Transformer and its embeddings are
-    fused (here by concatenation and projection) with the reference embeddings.
+    fused (via concatenation and projection or via averaging) with the reference embeddings.
     """
     def __init__(self, 
                  esm_model_name='esm2_t6_8M_UR50D', 
@@ -48,12 +48,9 @@ class ESM2ContactDistanceAnglePredictorMSA(nn.Module):
                  use_msa=True):
         super().__init__()
         self.use_msa = use_msa
-        # Load the reference model and its alphabet.
+        # Load the reference model.
         self.ref_model, self.ref_alphabet = esm.pretrained.load_model_and_alphabet(esm_model_name)
         self.ref_model.train()
-        # **New:** Expose the reference alphabet as a top-level attribute.
-        self.alphabet = self.ref_alphabet
-
         if num_layers_to_freeze is not None:
             if hasattr(self.ref_model, "encoder") and hasattr(self.ref_model.encoder, "layers"):
                 for i, layer in enumerate(self.ref_model.encoder.layers):
@@ -72,6 +69,13 @@ class ESM2ContactDistanceAnglePredictorMSA(nn.Module):
         if self.use_msa:
             self.msa_model, self.msa_alphabet = esm.pretrained.load_model_and_alphabet(msa_model_name)
             self.msa_model.train()
+            # Try to read embed_dim; if not present, use a fallback (e.g. 768)
+            if hasattr(self.msa_model, "embed_dim"):
+                msa_dim = self.msa_model.embed_dim
+            else:
+                msa_dim = 768  # fallback value; adjust as needed
+        else:
+            msa_dim = self.ref_model.embed_dim
 
         self.feature_fusion = feature_fusion
         self.fusion_scale = fusion_scale
@@ -84,28 +88,43 @@ class ESM2ContactDistanceAnglePredictorMSA(nn.Module):
                 self.transformer_fusion_angle = None
             else:
                 self.transformer_fusion = None
-
-        ref_dim = self.ref_model.embed_dim
-        # Heads
-        self.contact_head = nn.Bilinear(ref_dim, ref_dim, 1)
-        self.distance_head = nn.Bilinear(ref_dim, ref_dim, 1)
-        self.angle_head = nn.Bilinear(ref_dim, ref_dim, 1)
-        # For fusion via concatenation, define a projection layer.
-        if self.feature_fusion:
             self.fusion_method = "concat"
-            self.proj = nn.Linear(ref_dim * 2, ref_dim)
+            # Projection layer: concatenate along the feature dimension.
+            self.proj = nn.Linear(self.ref_model.embed_dim + msa_dim, self.ref_model.embed_dim)
         else:
             self.fusion_method = None
 
+        ref_dim = self.ref_model.embed_dim
+        # Define heads.
+        self.contact_head = nn.Bilinear(ref_dim, ref_dim, 1)
+        self.distance_head = nn.Bilinear(ref_dim, ref_dim, 1)
+        self.angle_head = nn.Bilinear(ref_dim, ref_dim, 1)
+
     def forward(self, tokens):
+        """
+        Args:
+            tokens: Either a single tensor of shape (B, L+2) if use_msa is False, or a tuple 
+                    (ref_tokens, msa_tokens) if use_msa is True.
+        Returns:
+            Tuple: (contact_probs, distance_preds, angle_preds)
+        """
         if self.use_msa and isinstance(tokens, tuple):
             ref_tokens, msa_tokens = tokens
             ref_out = self.ref_model(ref_tokens, repr_layers=[self.ref_model.num_layers])
-            ref_emb = ref_out["representations"][self.ref_model.num_layers]  # (B, L+2, d)
-            msa_out = self.msa_model(msa_tokens.view(-1, msa_tokens.shape[-1]), repr_layers=[self.msa_model.num_layers])
-            msa_emb = msa_out["representations"][self.msa_model.num_layers]  # (B*num_seqs, L+2, d)
-            msa_emb = msa_emb.view(msa_tokens.shape[0], msa_tokens.shape[1], msa_tokens.shape[2], -1)
-            msa_emb = msa_emb.mean(dim=1)  # average over MSA sequences → (B, L+2, d)
+            ref_emb = ref_out["representations"][self.ref_model.num_layers]  # (B, L+2, d_ref)
+            msa_out = self.msa_model(msa_tokens, repr_layers=[self.msa_model.num_layers])
+            msa_emb = msa_out["representations"][self.msa_model.num_layers]  # (B*num_seqs, L+2, d_msa)
+            # Reshape to (B, num_seqs, L+2, d_msa) then average over MSA sequences.
+            B, num_seqs, Lp2 = msa_tokens.shape[0], msa_tokens.shape[1], msa_tokens.shape[2]
+            msa_emb = msa_emb.view(B, num_seqs, Lp2, -1).mean(dim=1)  # (B, L+2, d_msa)
+            # Ensure the reference and MSA embeddings have the same sequence length.
+            if ref_emb.shape[1] != msa_emb.shape[1]:
+                diff = ref_emb.shape[1] - msa_emb.shape[1]
+                if diff > 0:
+                    msa_emb = F.pad(msa_emb, (0, 0, 0, diff), "constant", 0)
+                else:
+                    ref_emb = F.pad(ref_emb, (0, 0, 0, -diff), "constant", 0)
+            # Fusion via concatenation.
             if self.fusion_method == "concat":
                 fused_emb = torch.cat([ref_emb, msa_emb], dim=-1)
                 fused_emb = self.proj(fused_emb)

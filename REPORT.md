@@ -1,0 +1,16 @@
+Hey! First of all, I want to say thank you for such an interesting and non-trivial test assignment. I was truly enthusiastic about reading articles on proteins and their structure. One of the metrics by which a man can be measured is the scale of the problem he is solving. Contributing to cancer drug research is an incredibly inspiring challenge — one that I would love to dedicate a significant part of the time that has been given to me to.
+
+- **A precise description of your method and how it extends ESM2.**
+...
+
+- **Data pre- and post-processing steps.**
+...
+
+- **Hyperparameters and other relevant details of the ML setup.**
+...
+
+- **Analysis of the results, including performance metrics and insights.**
+...
+
+- **Breakdown of the time (in hours) spent on each aspect of the task.**
+...

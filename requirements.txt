@@ -1,0 +1,7 @@
+mlflow==2.20.1
+jupyterlab
+h5py==3.12.1
+numpy==1.26.4
+fair-esm==2.0.0
+biopython==1.85
+mafft

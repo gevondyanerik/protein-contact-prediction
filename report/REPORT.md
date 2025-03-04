@@ -1,9 +1,9 @@
 Hey! First of all, I want to say thank you for such an interesting and non-trivial test assignment. I was truly enthusiastic about reading articles on proteins and their structure. One of the metrics by which a man can be measured is the scale of the problem he is solving. Contributing to cancer drug research is an incredibly inspiring challenge — one that I would love to dedicate a significant part of the time that has been given to me to.
 
-- **A precise description of your method and how it extends ESM2.**
+### **A precise description of your method and how it extends ESM2.**
 Fine-tuned ESM2 and ESM-MSA-1b models; with tokenized sequence and MSA as inputs; trained on three tasks - contact map prediction, distance map prediction (bins prediction in classification manner), angle prediction (bins prediction in classification manner); with transformer-based CrossFusion module for task-specific embeddings fusion.
 
-- **Data pre- and post-processing steps.**
+### **Data pre- and post-processing steps.**
 1. PDB files converts to H5 dataset that includes sequence, msa, contact map, distance map, angle map.
 2. The maximum length of sequence and MSA is limited by the max_length argument in the training configuration file.
 3. The maximum distance in distance map is limited by the max_distance argument in the training configuration file.
@@ -12,7 +12,7 @@ Fine-tuned ESM2 and ESM-MSA-1b models; with tokenized sequence and MSA as inputs
 6. In validation mode, either truncation or sliding window is applied to process long sequences.
 7. Padding and special tokens (CLS, EOS, UNK) are applied to process short sequences.
 
-- **Hyperparameters and other relevant details of the ML setup.**
+### **Hyperparameters and other relevant details of the ML setup.**
     ```yaml
     train_data_path: `path to training HDF5 dataset`
     test_data_path: `path to validation HDF5 dataset`
@@ -73,7 +73,7 @@ Fine-tuned ESM2 and ESM-MSA-1b models; with tokenized sequence and MSA as inputs
         run_name: "mlflow run name"
     ```
 
-- **Analysis of the results, including performance metrics and insights.**
+### **Analysis of the results, including performance metrics and insights.**
 Because of the time constraints, I allowed myself to train on short sequences and **leave the models underfitted**, focusing on performance during the early epochs. Please take this factor into account.
 
 Due to class imbalance and the specifics of the task, ROC AUC seemed like a good choice as the primary metric. I will also include Precision, Recall, F1, and PR AUC. Should keep in mind that **I have not tuned the threshold**.
@@ -99,7 +99,7 @@ I conducted 6 experiments:
 ![Metrics](exp6.png)
 
 
-- **Breakdown of the time (in hours) spent on each aspect of the task.**
+### **Breakdown of the time (in hours) spent on each aspect of the task.**
 1. Research (4-5 hours).
 2. Dataset Preparation (3-4 hours).
 3. Training Pipeline (8-9 hours).

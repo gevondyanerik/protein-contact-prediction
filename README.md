@@ -72,65 +72,65 @@ This repository contains a deep learning solution for predicting residue-residue
    ```
 
 ### Training
-1. **Set up training yaml configuration file:**
+1. **Set up training yaml configuration file (example in src/config.yaml):**
    ```yaml
-    train_data_path: "data/train_dataset.h5"
-    test_data_path: "data/test_dataset.h5"
+    train_data_path: `path to training HDF5 dataset`
+    test_data_path: `path to validation HDF5 dataset`
 
     dataset:
-        max_length: 50
-        max_distance: 40
-        sliding_window_step: 50
-        train_mode: "random_crop"    # "truncate_seq" or "random_crop"
-        val_mode: "sliding_window"   # "truncate_seq" or "sliding_window"
-        use_msa: true
-        num_msa_rows: 4
-        num_angle_bins: 24
-        train_batch_size: 8
-        val_batch_size: 4
+        max_length: `maximum protein sequence length used for cropping/truncation/padding`
+        max_distance: `maximum distance value for generating distance bins`
+        sliding_window_step: `step size when applying a sliding window on long sequences during validation`
+        train_mode: `cropping strategy during training; "random_crop" selects a random part, "truncate_seq" always takes the first part`
+        val_mode: `cropping strategy during validation; "sliding_window" uses overlapping windows, "truncate_seq" uses the first part`
+        use_msa: `whether to use multiple sequence alignment (msa) data for training`
+        num_msa_rows: `number of MSA sequences to use per protein`
+        num_angle_bins: `number of discrete bins for angle classification`
+        train_batch_size: `number of training samples per batch`
+        val_batch_size: `number of validation samples per batch`
 
     model:
-        esm2_name: "esm2_t6_8M_UR50D"
-        esm_msa_name: "esm_msa1b_t12_100M_UR50S"
-        main_task: "contact"   # "contact" or "distance"
-        use_contact: true
-        use_distance: true
-        use_angle: true
-        num_layers_to_freeze_esm2: 6
-        num_layers_to_freeze_msa: 12
-        fusion_dim: 256
-        fusion_num_layers: 4
-        fusion_num_heads: 8
+        esm2_name: `identifier for pre-trained esm2 model used for sequence embeddings`
+        esm_msa_name: `identifier for pre-trained msa model used for msa embeddings`
+        main_task: `primary prediction task; "contact" uses contact head predictions, "distance" uses distance head predictions (converted to binary contact map)`
+        use_contact: `whether to train on contact map prediction task`
+        use_distance: `whether to train on distance map prediction task`
+        use_angle: `whether to train on angle map prediction task`
+        num_layers_to_freeze_esm2: `number of initial layers to freeze in esm2 model`
+        num_layers_to_freeze_msa: `number of initial layers to freeze in msa model`
+        fusion_dim: `size of embedding space for fused features`
+        fusion_num_layers: `number of layer in fusion module`
+        fusion_num_heads: `number of heads in fusion module`
 
     train:
-        seed: 42
-        num_epochs: 15
-        contact_loss_type: "bce"    # "bce" or "focal"
-        bce_contact_class_weights: [1.0, 30.0]
-        learning_rate: 0.0001
-        cosine_annealing_warm_restart_t_0: 10
-        cosine_annealing_warm_restart_t_mult: 1
-        cosine_annealing_warm_restart_eta_min: 0.000001
-        focal_gamma: 2.0
-        focal_alpha: 2.0
-        contact_loss_weight: 1.
-        distance_loss_weight: 0.25
-        angle_loss_weight: 0.1
-        use_scheduler: true
-        overfit_one_batch: false
+        seed: `random seed for reproducibility`
+        num_epochs: `number of training epochs`
+        contact_loss_type: `loss type for contact prediction ("bce" or "focal")`
+        bce_contact_class_weights: `weights for negative and positive classes in bce loss (e.g., [1.0, 30.0])`
+        learning_rate: `optimizer’s learning rate`
+        cosine_annealing_warm_restart_t_0: `cosine annealing scheduler t_0 parameter`
+        cosine_annealing_warm_restart_t_mult: `cosine annealing scheduler t_mult parameter`
+        cosine_annealing_warm_restart_eta_min: `cosine annealing scheduler eta_min parameter`
+        focal_gamma: `focal loss annealing scheduler gamma parameter`
+        focal_alpha: `focal loss annealing scheduler alpha parameter`
+        contact_loss_weight: `weighting factor for the contribution of contact loss to the total loss`
+        distance_loss_weight: `weighting factor for the contribution of distance loss to the total loss`
+        angle_loss_weight: `weighting factor for the contribution of angle loss to the total loss`
+        use_scheduler: `weither to use learning rate scheduler`
+        overfit_one_batch: `weither to use one batch overfitting`
 
     checkpoints:
-        checkpoint_path_to_load: null
-        checkpoints_dir_path: "checkpoints/"
-        checkpoints_metric: "roc_auc"
-        maximize_metric: true
-        save_best_k_checkpoints: 2
+        checkpoint_path_to_load: `path to checkpoint that you wanna load`
+        checkpoints_dir_path: `path to checkpoints folder`
+        checkpoints_metric: `metric used to determine best checkpoint`
+        maximize_metric: `indicates if higher values of the checkpoint metric are better`
+        save_best_k_checkpoints: `maximum number of top checkpoints to retain`
 
     mlflow:
-        enabled: true
-        tracking_uri: "http://localhost:5000"
-        experiment_name: "exp_name"
-        run_name: "v1"
+        enabled: `enable mlflow logging`
+        tracking_uri: `mlflow tracking server uri (e.g., "http://localhost:5000")`
+        experiment_name: "mlflow experiment name"
+        run_name: "mlflow run name"
    ```
 2. **Enter into container:**
    ```bash

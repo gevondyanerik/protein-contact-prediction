@@ -40,7 +40,7 @@ This repository contains a deep learning solution for predicting residue-residue
 ### Dataset preparation
 1. **Set up .env file::**
    ```txt
-    PDB_DATA_URL=*link to the dataset (google disk, for example)*
+    PDB_DATA_URL=https://drive.google.com/file/d/{link}/view?usp=sharing
     PDB_DATA_OUTPUT_DIR=../data/pdb
     PDB_DATA_ZIP_NAME=pdb_data.zip
     UNZIP_FILE=true
@@ -129,8 +129,8 @@ This repository contains a deep learning solution for predicting residue-residue
     mlflow:
         enabled: `enable mlflow logging`
         tracking_uri: `mlflow tracking server uri (e.g., "http://localhost:5000")`
-        experiment_name: "mlflow experiment name"
-        run_name: "mlflow run name"
+        experiment_name: `mlflow experiment name`
+        run_name: `mlflow run name`
    ```
 2. **Enter into container:**
    ```bash
